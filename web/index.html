@@ -1,0 +1,304 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Site Designer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&family=DM+Mono&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/pyodide/v0.26.4/full/pyodide.js"></script>
+<style>
+:root{--bg:#d9e1e7;--panel:#f5f7f8;--ink:#1b2733;--mute:#5b6b7a;--line:#b9c5ce;--cobalt:#2a44e8;--amber:#f0a92e}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{display:flex;flex-direction:column;background:var(--bg);color:var(--ink);font:13px/1.4 'Bricolage Grotesque',system-ui,sans-serif;overflow:hidden}
+.bar{display:flex;align-items:center;gap:6px;padding:6px 10px;background:var(--panel);border-bottom:1px solid var(--line);flex-wrap:wrap}
+.bar b{font-size:16px;font-weight:800;margin-right:8px}.bar .sp{flex:1}
+button,select,input,textarea{font:inherit}
+button{padding:5px 10px;border:1px solid var(--line);background:#fff;color:var(--ink);cursor:pointer;border-radius:4px}
+button:hover:not(:disabled){border-color:var(--ink)}button:disabled{opacity:.4;cursor:not-allowed}
+button.p{background:var(--cobalt);border-color:var(--cobalt);color:#fff}
+button[aria-pressed=true]{background:var(--amber);border-color:var(--ink)}
+:focus-visible{outline:2px solid var(--cobalt);outline-offset:1px}
+select,input[type=text],input[type=number],textarea{padding:4px 6px;border:1px solid var(--line);background:#fff;border-radius:4px;width:100%}
+.bar select{width:auto}
+.app{flex:1;display:grid;grid-template-columns:230px 1fr 270px;min-height:0}
+aside{background:var(--panel);overflow:auto;padding:10px}
+aside.l{border-right:1px solid var(--line)}aside.r{border-left:1px solid var(--line)}
+h3{margin:0 0 8px;font-size:13px;text-transform:capitalize}
+#layers{list-style:none;margin:0 0 14px;padding:0;display:grid;gap:3px}
+#layers li{display:flex;align-items:center;gap:3px;padding:3px 5px;background:#fff;border:1px solid var(--line);border-radius:4px;cursor:pointer}
+#layers li.on{border-color:var(--cobalt);background:#e8ecff}
+#layers span{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#layers button{padding:0 5px;font-size:11px;border-color:transparent;background:none}
+.chips{display:flex;gap:4px;flex-wrap:wrap;margin-top:6px}.chips button{font-size:11px;padding:2px 8px;border-radius:99px}
+#ask{display:flex;gap:4px}#reply{margin-top:6px;color:var(--mute);white-space:pre-line;font-size:12px}
+#view{position:relative;overflow:hidden;background:#cfd8df;touch-action:none}
+#world{position:absolute;left:0;top:0;transform-origin:0 0}
+#frame{position:relative;box-shadow:0 2px 20px rgba(0,0,0,.25)}
+.el{position:absolute;line-height:1.3;white-space:pre-wrap;box-sizing:border-box;user-select:none;cursor:move}
+.el.button,.el.input{display:flex;align-items:center}.el.input{padding:0 14px}
+.el[contenteditable=true]{cursor:text;outline:2px solid var(--cobalt)}
+#sel{position:absolute;border:calc(1.5px/var(--z)) solid var(--cobalt);pointer-events:none;display:none}
+#sel i{position:absolute;width:calc(9px/var(--z));height:calc(9px/var(--z));background:#fff;border:calc(1.5px/var(--z)) solid var(--cobalt);transform:translate(-50%,-50%);pointer-events:auto}
+#sel.multi i{display:none}
+i[data-h=nw]{left:0;top:0;cursor:nwse-resize}i[data-h=n]{left:50%;top:0;cursor:ns-resize}i[data-h=ne]{left:100%;top:0;cursor:nesw-resize}
+i[data-h=e]{left:100%;top:50%;cursor:ew-resize}i[data-h=se]{left:100%;top:100%;cursor:nwse-resize}i[data-h=s]{left:50%;top:100%;cursor:ns-resize}
+i[data-h=sw]{left:0;top:100%;cursor:nesw-resize}i[data-h=w]{left:0;top:50%;cursor:ew-resize}
+#props{display:grid;gap:8px}label{display:grid;gap:2px;color:var(--mute);font-size:12px}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.c{display:flex;gap:4px}.c input{height:28px;padding:1px;width:44px}.c button{flex:1;font-size:11px;padding:0 4px}
+.chk{display:flex;align-items:center;gap:6px;color:var(--ink);font-size:13px}.chk input{width:auto}
+.hint{color:var(--mute);font-size:12px}
+dialog{width:min(900px,95vw);border:1px solid var(--line);padding:16px;background:var(--panel);color:var(--ink)}
+dialog::backdrop{background:rgba(27,39,51,.5)}
+pre{margin:10px 0;padding:12px;background:#1b2733;color:#e7edf2;font:12px/1.5 'DM Mono',monospace;height:46vh;overflow:auto}
+.row{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+</style>
+</head>
+<body>
+<div class="bar">
+  <b>Site Designer</b>
+  <button data-add="rect">Rectangle</button><button data-add="ellipse">Ellipse</button><button data-add="text">Text</button>
+  <button data-add="button">Button</button><button data-add="image">Image</button><button data-add="input">Input</button>
+  <select id="sec" class="py" disabled aria-label="Add a section"><option value="">Add section…</option><option value="navbar">Navbar</option><option value="hero">Hero</option><option value="features">Features</option><option value="pricing">Pricing</option><option value="cta">Call to action</option><option value="footer">Footer</option></select>
+  <select id="fw" aria-label="Page width"><option value="1280">Desktop 1280</option><option value="768">Tablet 768</option><option value="390">Mobile 390</option></select>
+  <span class="sp"></span>
+  <label class="chk"><input type="checkbox" id="snap" checked> Snap 8px</label>
+  <button id="undo" title="Ctrl+Z">Undo</button><button id="redo" title="Ctrl+Y">Redo</button>
+  <button id="zo">−</button><span id="zoom">100%</span><button id="zi">+</button><button id="fit">Fit</button>
+  <button id="save">Save file</button><button id="open">Open file</button><input type="file" id="openf" accept=".json" hidden>
+  <button id="aiset">AI settings</button><button class="p py" id="exp" disabled>Export code</button>
+</div>
+<div class="app">
+  <aside class="l"><h3>Layers</h3><ul id="layers"></ul>
+    <h3>Assistant</h3>
+    <label class="chk" style="margin-bottom:6px"><input type="checkbox" id="useai" class="py" disabled> Use AI (your API key)</label>
+    <form id="ask"><input type="text" class="py" id="q" placeholder="Describe what to build or change" aria-label="Ask the assistant" disabled><button class="py" id="go" disabled>Go</button></form>
+    <div class="chips" id="chips"></div>
+    <div id="reply">Loading Python in your browser (first load is about 10 MB)…</div></aside>
+  <div id="view"><div id="world"><div id="frame"></div>
+    <div id="sel"><i data-h="nw"></i><i data-h="n"></i><i data-h="ne"></i><i data-h="e"></i><i data-h="se"></i><i data-h="s"></i><i data-h="sw"></i><i data-h="w"></i></div></div></div>
+  <aside class="r"><div id="props"></div></aside>
+</div>
+<dialog id="dlg"><div class="row"><b style="flex:1;font-size:16px">Export code</b>
+  <label class="chk">Layout <select id="mode" style="width:auto"><option value="auto">Responsive (auto layout)</option><option value="abs">Pixel-perfect (absolute)</option></select></label>
+  <label class="chk"><input type="checkbox" id="incjs"> Include JavaScript</label><button id="close">Close</button></div>
+  <div class="row" style="margin-top:8px"><button id="thtml" aria-pressed="true">HTML</button><button id="tcss" aria-pressed="false">CSS</button><button id="tjs" aria-pressed="false">JavaScript</button></div>
+  <pre id="code" tabindex="0"></pre>
+  <div class="row"><button id="copy">Copy code</button><button id="dl">Download this tab</button><button id="dlall">Download as separate files</button><button class="p" id="prev">Preview in new tab</button></div>
+  <p class="hint">Responsive stacks rows on phones. Pixel-perfect keeps your exact positions and scales widths with the screen. The HTML tab is one self-contained file.</p></dialog>
+<dialog id="aidlg"><b style="font-size:16px">AI settings</b>
+  <p class="hint">Real AI edits your design from plain English (for example "design a landing page for a coffee shop"). It uses <b>your own Anthropic API key</b>; the request goes straight from your browser to api.anthropic.com and costs a small amount per request. Without a key, the free rule-based assistant is used.</p>
+  <div style="display:grid;gap:8px"><label>API key<input type="password" id="aikey" autocomplete="off" placeholder="sk-ant-..."></label>
+  <label>Model<input type="text" id="aimodel"></label>
+  <label class="chk"><input type="checkbox" id="airem"> Remember the key on this device (otherwise only until you close the tab)</label></div>
+  <p class="hint">Never put a key in the GitHub repo. Anyone who opens your published site must use their own key. Do not save a key on a shared computer. Set a spend limit on the key in your Anthropic console.</p>
+  <div class="row"><button class="p" id="aisave">Save</button><button id="aidel">Remove key</button><button id="aiclose">Close</button></div></dialog>
+<script>
+const $ = s => document.querySelector(s), view = $('#view');
+const uid = () => 'e' + Math.random().toString(36).slice(2, 8);
+const FONT = {sans:"system-ui,-apple-system,'Segoe UI',sans-serif", serif:"Georgia,'Times New Roman',serif", rounded:"'Trebuchet MS','Segoe UI',sans-serif", mono:"ui-monospace,Menlo,monospace"};
+const BASE = {type:'rect',name:'',x:0,y:0,w:200,h:100,fill:'',color:'#18202b',stroke:'#000000',sw:0,r:0,op:100,fs:16,fw:400,ta:'left',text:'',href:'',src:'',shadow:false};
+const NEW = {rect:{name:'Rectangle',w:200,h:120,fill:'#e6ebef',r:12}, ellipse:{name:'Ellipse',w:140,h:140,fill:'#f0a92e'}, text:{name:'Text',w:260,h:40,text:'Heading',fs:28,fw:700},
+  button:{name:'Button',w:160,h:48,text:'Button',fill:'#2a44e8',color:'#ffffff',r:10,fw:600,ta:'center'}, image:{name:'Image',w:300,h:200,r:8},
+  input:{name:'Input',w:280,h:44,text:'Email address',fill:'#ffffff',stroke:'#b9c5ce',sw:1,r:8,color:'#5b6b7a',fs:15}};
+const NUM = new Set(['x','y','w','h','r','op','fs','fw','sw']);
+const blank = () => ({page:{w:1280,bg:'#ffffff',font:'sans',title:'My site',accent:'#2a44e8',anim:false}, els:[]});
+function load(){ try { const d = JSON.parse(localStorage.getItem('site-doc')); return fix(d); } catch (e) { return null; } }
+function fix(d){ if (!d || !Array.isArray(d.els)) return null; return {page:{...blank().page, ...d.page}, els:d.els.map(e => ({...BASE, ...e}))}; }
+let doc = load() || blank(), sel = [], hist = [], hi = -1, V = {x:40,y:30,z:.6}, drag = null, space = false, last = {}, api = null, tab = 'html', ex = null;
+const byId = id => doc.els.find(e => e.id === id);
+const snap = v => $('#snap').checked ? Math.round(v / 8) * 8 : Math.round(v);
+const frameH = () => Math.max(800, ...doc.els.map(e => e.y + e.h + 120));
+const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');
+const toWorld = ev => { const r = view.getBoundingClientRect(); return {x:(ev.clientX - r.left - V.x) / V.z, y:(ev.clientY - r.top - V.y) / V.z}; };
+
+function commit(){
+  const s = JSON.stringify(doc); if (hist[hi] !== s) { hist = hist.slice(0, hi + 1); hist.push(s); if (hist.length > 80) hist.shift(); hi = hist.length - 1; }
+  try { localStorage.setItem('site-doc', s); } catch (e) {}
+  render();
+}
+function undo(d){ const n = hi + d; if (n < 0 || n >= hist.length) return; hi = n; doc = JSON.parse(hist[hi]); sel = sel.filter(id => byId(id)); render(); }
+function node(e){
+  const d = document.createElement('div'), s = d.style; d.className = 'el ' + e.type; d.dataset.id = e.id;
+  s.left = e.x + 'px'; s.top = e.y + 'px'; s.width = e.w + 'px'; s.height = e.h + 'px';
+  if (e.type === 'image') s.background = e.src ? `url("${e.src.replace(/"/g, '%22')}") center/cover` : 'linear-gradient(135deg,#cfd8e0,#aab8c4)'; else if (e.fill) s.background = e.fill;
+  s.borderRadius = e.type === 'ellipse' ? '50%' : e.r + 'px'; if (e.sw) s.border = e.sw + 'px solid ' + e.stroke;
+  s.opacity = e.op / 100; if (e.shadow) s.boxShadow = '0 8px 24px rgba(0,0,0,.18)';
+  if (['text','button','input'].includes(e.type)) { s.color = e.color; s.fontSize = e.fs + 'px'; s.fontWeight = e.fw; s.textAlign = e.ta; s.justifyContent = {left:'flex-start',center:'center',right:'flex-end'}[e.ta]; d.textContent = e.text; }
+  return d;
+}
+function draw(){
+  const f = $('#frame'), p = doc.page;
+  f.style.cssText = `width:${p.w}px;height:${frameH()}px;background:${p.bg};font-family:${FONT[p.font]}`;
+  f.innerHTML = ''; doc.els.forEach(e => f.appendChild(node(e)));
+  const w = $('#world'); w.style.transform = `translate(${V.x}px,${V.y}px) scale(${V.z})`; w.style.setProperty('--z', V.z);
+  $('#zoom').textContent = Math.round(V.z * 100) + '%'; $('#fw').value = p.w;
+  const els = sel.map(byId).filter(Boolean), b = $('#sel');
+  if (els.length) { const x1 = Math.min(...els.map(e => e.x)), y1 = Math.min(...els.map(e => e.y)), x2 = Math.max(...els.map(e => e.x + e.w)), y2 = Math.max(...els.map(e => e.y + e.h));
+    b.style.cssText = `display:block;left:${x1}px;top:${y1}px;width:${x2 - x1}px;height:${y2 - y1}px`; b.classList.toggle('multi', els.length > 1); } else b.style.display = 'none';
+  $('#layers').innerHTML = [...doc.els].reverse().map(e => `<li data-id="${e.id}" class="${sel.includes(e.id) ? 'on' : ''}"><span>${esc(e.name || e.type)}</span><button data-a="up" title="Bring forward" aria-label="Bring forward">↑</button><button data-a="down" title="Send backward" aria-label="Send backward">↓</button><button data-a="del" title="Delete" aria-label="Delete">✕</button></li>`).join('');
+  $('#undo').disabled = hi <= 0; $('#redo').disabled = hi >= hist.length - 1;
+}
+function render(){ draw(); props(); }
+
+// ---------- properties panel
+const T = (l, k, v, a = 'k', t = 'text') => `<label>${l}<input type="${t}" data-${a}="${k}" value="${esc(v)}"></label>`;
+const N = (l, k, v, min, max) => `<label>${l}<input type="number" data-k="${k}" value="${Math.round(v)}"${min != null ? ` min="${min}"` : ''}${max != null ? ` max="${max}"` : ''}></label>`;
+const C = (l, k, v, a = 'k', clear) => `<label>${l}<span class="c"><input type="color" data-${a}="${k}" value="${v || '#ffffff'}">${clear ? `<button type="button" data-clear="${k}">${v ? 'No fill' : '(none)'}</button>` : ''}</span></label>`;
+const S = (l, k, v, o, a = 'k') => `<label>${l}<select data-${a}="${k}">${o.map(x => `<option${x == v ? ' selected' : ''}>${x}</option>`).join('')}</select></label>`;
+function props(){
+  const P = $('#props'), els = sel.map(byId).filter(Boolean), p = doc.page;
+  if (!els.length) {
+    P.innerHTML = `<h3>Page</h3>${T('Title', 'title', p.title, 'p')}${C('Background', 'bg', p.bg, 'p')}${C('Accent color (used by sections)', 'accent', p.accent, 'p')}${S('Font', 'font', p.font, Object.keys(FONT), 'p')}
+      <label class="chk"><input type="checkbox" data-p="anim"${p.anim ? ' checked' : ''}> Animate on scroll (needs JavaScript)</label>
+      <p class="hint">Add shapes from the toolbar, drag to move, use the handles to resize, double-click text to edit. Hold Space and drag to pan, Ctrl + scroll to zoom. Put text on top of a rectangle to make a card.</p>`; return;
+  }
+  const e = els[0], t = e.type, txt = ['text', 'button', 'input'].includes(t);
+  let h = `<h3>${els.length > 1 ? els.length + ' selected' : t}</h3>`;
+  if (els.length === 1) h += T('Layer name (also its #link id)', 'name', e.name);
+  h += `<div class="g2">${N('X', 'x', e.x)}${N('Y', 'y', e.y)}${N('Width', 'w', e.w, 8)}${N('Height', 'h', e.h, 8)}</div>`;
+  if (txt) h += `<label>Text<textarea data-k="text" rows="2">${esc(e.text)}</textarea></label><div class="g2">${C('Text color', 'color', e.color)}${N('Size', 'fs', e.fs, 6, 200)}${S('Weight', 'fw', e.fw, [400, 500, 600, 700, 800])}${S('Align', 'ta', e.ta, ['left', 'center', 'right'])}</div>`;
+  h += C('Fill', 'fill', e.fill, 'k', true) + `<div class="g2">${t === 'ellipse' ? '' : N('Radius', 'r', e.r, 0, 999)}${N('Opacity %', 'op', e.op, 0, 100)}${C('Border', 'stroke', e.stroke)}${N('Border width', 'sw', e.sw, 0, 40)}</div>`;
+  h += `<label class="chk"><input type="checkbox" data-k="shadow"${e.shadow ? ' checked' : ''}> Shadow</label>`;
+  if (t === 'button' || t === 'text') h += T('Link (URL or #layer-name)', 'href', e.href);
+  if (t === 'image') h += T('Image URL', 'src', e.src.startsWith('data:') ? '' : e.src) + `<label>Or upload<input type="file" id="imgf" accept="image/*"></label>`;
+  P.innerHTML = h;
+}
+$('#props').addEventListener('input', ev => {
+  const t = ev.target, k = t.dataset.k, pk = t.dataset.p; let v = t.type === 'checkbox' ? t.checked : t.value;
+  if (pk) doc.page[pk] = v; else if (k) { if (NUM.has(k)) v = +v || 0; sel.forEach(id => byId(id)[k] = v); } else return;
+  draw();
+});
+$('#props').addEventListener('change', ev => {
+  if (ev.target.id === 'imgf') { const f = ev.target.files[0]; if (!f) return; const r = new FileReader(); r.onload = () => { byId(sel[0]).src = r.result; commit(); }; r.readAsDataURL(f); }
+  else if (ev.target.dataset.k || ev.target.dataset.p) commit();
+});
+$('#props').addEventListener('click', ev => { const k = ev.target.dataset.clear; if (k) { sel.forEach(id => byId(id)[k] = ''); commit(); } });
+
+// ---------- editing
+function add(type){
+  const d = {...BASE, ...NEW[type], type, id: uid()}, r = view.getBoundingClientRect(), c = toWorld({clientX: r.left + r.width / 2, clientY: r.top + r.height / 2});
+  d.x = Math.max(0, Math.min(doc.page.w - d.w, snap(c.x - d.w / 2))); d.y = Math.max(0, snap(c.y - d.h / 2)); doc.els.push(d); sel = [d.id]; commit();
+}
+function del(){ doc.els = doc.els.filter(e => !sel.includes(e.id)); sel = []; commit(); }
+function dup(){ const n = sel.map(byId).map(e => ({...e, id: uid(), x: e.x + 16, y: e.y + 16})); doc.els.push(...n); sel = n.map(e => e.id); commit(); }
+function edit(id){
+  const n = $(`.el[data-id="${id}"]`), e = byId(id); n.contentEditable = 'true'; n.style.userSelect = 'text'; n.focus();
+  const r = document.createRange(); r.selectNodeContents(n); const s = getSelection(); s.removeAllRanges(); s.addRange(r);
+  n.onblur = () => { e.text = n.innerText.replace(/\n$/, ''); commit(); }; n.onkeydown = k => { if (k.key === 'Escape') n.blur(); k.stopPropagation(); };
+}
+function fit(){ const W = doc.page.w, H = frameH(), vw = view.clientWidth, vh = view.clientHeight, z = Math.min((vw - 80) / W, (vh - 60) / H, 1); V = {z, x:(vw - W * z) / 2, y:30}; draw(); }
+view.addEventListener('pointerdown', ev => {
+  if (ev.target.isContentEditable) return;
+  view.setPointerCapture(ev.pointerId); const p = toWorld(ev);
+  if (ev.button === 1 || space) { drag = {t:'pan', sx:ev.clientX, sy:ev.clientY, vx:V.x, vy:V.y}; return; }
+  if (ev.target.dataset.h) { drag = {t:'resize', h:ev.target.dataset.h, p, o:{...byId(sel[0])}}; return; }
+  const n = ev.target.closest('.el');
+  if (n) {
+    const id = n.dataset.id;
+    if (ev.shiftKey) sel = sel.includes(id) ? sel.filter(x => x !== id) : [...sel, id]; else if (!sel.includes(id)) sel = [id];
+    if (last.id === id && ev.timeStamp - last.t < 350 && ['text','button','input'].includes(byId(id).type)) { render(); edit(id); drag = null; return; }
+    last = {id, t:ev.timeStamp}; drag = {t:'move', p, moved:false, o:sel.map(i => ({id:i, x:byId(i).x, y:byId(i).y}))};
+  } else { sel = []; last = {}; }
+  render();
+});
+view.addEventListener('pointermove', ev => {
+  if (!drag) return;
+  if (drag.t === 'pan') { V.x = drag.vx + ev.clientX - drag.sx; V.y = drag.vy + ev.clientY - drag.sy; draw(); return; }
+  const p = toWorld(ev), dx = p.x - drag.p.x, dy = p.y - drag.p.y;
+  if (drag.t === 'move') { if (!drag.moved && Math.hypot(dx, dy) * V.z < 3) return; drag.moved = true; drag.o.forEach(o => { const e = byId(o.id); e.x = snap(o.x + dx); e.y = snap(o.y + dy); }); draw(); }
+  else { const o = drag.o, h = drag.h, e = byId(sel[0]); let {x, y, w, h: hh} = o;
+    if (h.includes('e')) w = Math.max(8, snap(o.w + dx)); if (h.includes('s')) hh = Math.max(8, snap(o.h + dy));
+    if (h.includes('w')) { w = Math.max(8, snap(o.w - dx)); x = o.x + o.w - w; } if (h.includes('n')) { hh = Math.max(8, snap(o.h - dy)); y = o.y + o.h - hh; }
+    Object.assign(e, {x, y, w, h:hh}); drag.moved = true; draw(); }
+});
+view.addEventListener('pointerup', () => { if (drag && drag.moved) commit(); else if (drag) props(); drag = null; });
+view.addEventListener('wheel', ev => {
+  ev.preventDefault();
+  if (ev.ctrlKey || ev.metaKey) { const r = view.getBoundingClientRect(), mx = ev.clientX - r.left, my = ev.clientY - r.top, nz = Math.min(4, Math.max(.1, V.z * Math.exp(-ev.deltaY * .01))); V.x = mx - (mx - V.x) * nz / V.z; V.y = my - (my - V.y) * nz / V.z; V.z = nz; }
+  else { V.x -= ev.deltaX; V.y -= ev.deltaY; } draw();
+}, {passive:false});
+addEventListener('keydown', ev => {
+  const g = ev.target; if (/INPUT|TEXTAREA|SELECT/.test(g.tagName) || g.isContentEditable) return;
+  if (ev.code === 'Space') { space = true; view.style.cursor = 'grab'; ev.preventDefault(); return; }
+  const m = ev.ctrlKey || ev.metaKey, k = ev.key.toLowerCase();
+  if (m && k === 'z') { undo(ev.shiftKey ? 1 : -1); ev.preventDefault(); } else if (m && k === 'y') { undo(1); ev.preventDefault(); } else if (m && k === 'd') { dup(); ev.preventDefault(); }
+  else if ((k === 'delete' || k === 'backspace') && sel.length) { del(); ev.preventDefault(); } else if (k === 'escape') { sel = []; render(); }
+  else if (k.startsWith('arrow') && sel.length) { const s = ev.shiftKey ? 10 : 1, d = {arrowleft:[-s,0], arrowright:[s,0], arrowup:[0,-s], arrowdown:[0,s]}[k]; sel.forEach(id => { const e = byId(id); e.x += d[0]; e.y += d[1]; }); commit(); ev.preventDefault(); }
+});
+addEventListener('keyup', ev => { if (ev.code === 'Space') { space = false; view.style.cursor = ''; } });
+$('#layers').onclick = ev => {
+  const li = ev.target.closest('li'); if (!li) return; const id = li.dataset.id, a = ev.target.dataset.a, i = doc.els.findIndex(e => e.id === id), E = doc.els;
+  if (a === 'up' && i < E.length - 1) { [E[i], E[i + 1]] = [E[i + 1], E[i]]; commit(); } else if (a === 'down' && i > 0) { [E[i], E[i - 1]] = [E[i - 1], E[i]]; commit(); }
+  else if (a === 'del') { E.splice(i, 1); sel = sel.filter(x => x !== id); commit(); } else { sel = ev.shiftKey ? (sel.includes(id) ? sel.filter(x => x !== id) : [...sel, id]) : [id]; render(); }
+};
+document.querySelectorAll('[data-add]').forEach(b => b.onclick = () => add(b.dataset.add));
+$('#undo').onclick = () => undo(-1); $('#redo').onclick = () => undo(1); $('#fit').onclick = fit;
+$('#zi').onclick = () => { V.z = Math.min(4, V.z * 1.25); draw(); }; $('#zo').onclick = () => { V.z = Math.max(.1, V.z / 1.25); draw(); };
+$('#fw').onchange = () => { doc.page.w = +$('#fw').value; commit(); fit(); };
+$('#save').onclick = () => save('site-design.json', JSON.stringify(doc, null, 1), 'application/json');
+$('#open').onclick = () => $('#openf').click();
+$('#openf').onchange = async ev => { try { const d = fix(JSON.parse(await ev.target.files[0].text())); if (!d) throw 0; doc = d; sel = []; commit(); fit(); } catch (e) { alert('That file is not a Site Designer project.'); } ev.target.value = ''; };
+function save(name, text, type){ const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([text], {type})); a.download = name; a.click(); URL.revokeObjectURL(a.href); }
+
+// ---------- Python engine: sections, assistant, export
+const py = m => JSON.parse(api(JSON.stringify(m)));
+$('#sec').onchange = ev => { if (!ev.target.value) return; const r = py({cmd:'preset', name:ev.target.value, doc}); doc = r.doc; sel = r.sel; ev.target.value = ''; commit(); };
+const AIURL = 'https://api.anthropic.com/v1/messages', DEFMODEL = 'claude-sonnet-5-5';
+const store = (k, v) => { try { return v === undefined ? (localStorage.getItem(k) || sessionStorage.getItem(k) || '') : (v ? localStorage.setItem(k, v) : (localStorage.removeItem(k), sessionStorage.removeItem(k))); } catch (e) { return ''; } };
+$('#chips').innerHTML = ['Design a landing page for a coffee shop', 'Improve spacing and contrast', 'Make the selection look more modern'].map(t => `<button type="button">${t}</button>`).join('');
+$('#chips').onclick = ev => { if (ev.target.tagName === 'BUTTON' && !$('#q').disabled) { $('#q').value = ev.target.textContent; $('#q').focus(); } };
+$('#useai').onchange = ev => { if (ev.target.checked && !store('site-ai-key')) { ev.target.checked = false; $('#aiset').click(); } };
+$('#aiset').onclick = () => { $('#aikey').value = ''; $('#aikey').placeholder = store('site-ai-key') ? 'Key saved (leave blank to keep it)' : 'sk-ant-...'; $('#aimodel').value = store('site-ai-model') || DEFMODEL; $('#aidlg').showModal(); };
+$('#aiclose').onclick = () => $('#aidlg').close();
+$('#aisave').onclick = () => {
+  const k = $('#aikey').value.trim();
+  if (k) { try { localStorage.removeItem('site-ai-key'); sessionStorage.removeItem('site-ai-key'); ($('#airem').checked ? localStorage : sessionStorage).setItem('site-ai-key', k); } catch (e) {} }
+  store('site-ai-model', $('#aimodel').value.trim() || DEFMODEL);
+  $('#useai').checked = !!store('site-ai-key'); $('#aidlg').close();
+};
+$('#aidel').onclick = () => { store('site-ai-key', ''); $('#useai').checked = false; $('#aidlg').close(); };
+const busy = b => document.querySelectorAll('#q,#go,#chips button').forEach(x => x.disabled = b);
+async function askAI(q){
+  busy(true); $('#reply').textContent = 'Thinking… big pages can take up to a minute.';
+  try {
+    const rq = py({cmd:'ai_request', doc, sel, text:q});
+    const res = await fetch(AIURL, {method:'POST', headers:{'content-type':'application/json', 'x-api-key':store('site-ai-key'), 'anthropic-version':'2023-06-01', 'anthropic-dangerous-direct-browser-access':'true'},
+      body:JSON.stringify({model:store('site-ai-model') || DEFMODEL, max_tokens:8000, system:rq.system, messages:[{role:'user', content:rq.user}]})});
+    if (!res.ok) throw new Error(res.status === 401 ? 'the API key was rejected (401). Check it in AI settings.' : `API error ${res.status}: ${(await res.text()).slice(0, 200)}`);
+    const data = await res.json();
+    if (data.stop_reason === 'max_tokens') throw new Error('the answer was cut off. Ask for a smaller change.');
+    const r = py({cmd:'ai_apply', doc, sel, text:(data.content || []).filter(b => b.type === 'text').map(b => b.text).join('')});
+    doc = r.doc; sel = r.sel; $('#reply').textContent = r.reply; $('#q').value = ''; commit(); if (r.fit) fit();
+  } catch (e) { $('#reply').textContent = 'AI request failed: ' + e.message + (e instanceof TypeError ? ' (network or browser blocked the request)' : ''); }
+  busy(false);
+}
+$('#ask').onsubmit = ev => {
+  ev.preventDefault(); const q = $('#q').value.trim(); if (!q) return;
+  if ($('#useai').checked) return askAI(q);
+  const r = py({cmd:'chat', text:q, doc, sel}); doc = r.doc; sel = r.sel; $('#reply').textContent = r.reply; $('#q').value = ''; commit();
+};
+function refresh(linked = false){ ex = py({cmd:'export', doc, mode:$('#mode').value, js:$('#incjs').checked, linked}); ['html','css','js'].forEach(n => $('#t' + n).setAttribute('aria-pressed', n === tab)); $('#code').textContent = ex[tab]; return ex; }
+$('#exp').onclick = () => { $('#incjs').checked = !!doc.page.anim; $('#dlg').showModal(); refresh(); };
+$('#mode').onchange = $('#incjs').onchange = () => refresh();
+['html','css','js'].forEach(n => $('#t' + n).onclick = () => { tab = n; refresh(); });
+$('#close').onclick = () => $('#dlg').close();
+$('#copy').onclick = async () => { try { await navigator.clipboard.writeText(ex[tab]); $('#copy').textContent = 'Copied'; } catch (e) { $('#copy').textContent = 'Select and copy'; } setTimeout(() => $('#copy').textContent = 'Copy code', 1500); };
+const MIME = {html:'text/html', css:'text/css', js:'text/javascript'};
+$('#dl').onclick = () => save('site.' + tab, ex[tab], MIME[tab]);
+$('#dlall').onclick = () => { const l = refresh(true); save('index.html', l.html, MIME.html); setTimeout(() => save('style.css', l.css, MIME.css), 300); if ($('#incjs').checked && doc.page.anim) setTimeout(() => save('script.js', l.js, MIME.js), 600); refresh(); };
+$('#prev').onclick = () => window.open(URL.createObjectURL(new Blob([refresh().html], {type:'text/html'})));
+async function boot(){
+  try {
+    const p = await loadPyodide({indexURL:'https://cdn.jsdelivr.net/pyodide/v0.26.4/full/'});
+    p.runPython(await (await fetch('app.py')).text()); api = p.globals.get('api');
+    document.querySelectorAll('.py').forEach(el => el.disabled = false); $('#useai').checked = !!store('site-ai-key'); $('#reply').textContent = 'Ready. Try: add a hero section';
+  } catch (e) { $('#reply').textContent = 'Could not start Python (' + e.message + '). The editor still works; reload to retry export.'; }
+}
+hist = [JSON.stringify(doc)]; hi = 0; render(); requestAnimationFrame(fit); addEventListener('resize', fit); boot();
+</script>
+</body>
+</html>
